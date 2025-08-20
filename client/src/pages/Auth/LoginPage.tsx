@@ -12,6 +12,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { LockOutlined } from '@mui/icons-material';
+import { useAuth } from '../../contexts/AuthContext';
 
 const LoginPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -21,6 +22,7 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -35,16 +37,20 @@ const LoginPage: React.FC = () => {
     setError('');
 
     try {
-      // TODO: Implement actual login logic
-      console.log('Login attempt:', formData);
+      // Call the login function from AuthContext
+      await login(formData.email, formData.password);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For now, just redirect to home
-      navigate('/');
-    } catch (err) {
-      setError('Login failed. Please check your credentials.');
+      // If login is successful, user will be redirected to home by AuthContext
+      // No need to manually navigate here
+    } catch (err: any) {
+      // Handle login errors
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError('Login failed. Please check your credentials and try again.');
+      }
     } finally {
       setLoading(false);
     }

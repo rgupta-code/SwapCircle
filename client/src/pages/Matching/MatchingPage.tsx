@@ -69,7 +69,7 @@ const MatchingPage: React.FC = () => {
               onChange={(e) => setSearchPreferences({ ...searchPreferences, interests: e.target.value })}
               placeholder="e.g., photography, music, cooking"
               multiline
-              rows={3}
+              rows={1}
             />
           </Grid>
           <Grid item xs={12} md={4}>

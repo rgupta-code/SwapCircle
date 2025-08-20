@@ -45,8 +45,11 @@ router.get('/trade/:tradeId', authenticateToken, async (req, res) => {
       .orderBy('messages.created_at', 'asc');
 
     // Get total count for pagination
-    const countQuery = query.clone();
-    const totalCount = await countQuery.count('* as total').first();
+    const countQuery = db('messages')
+      .join('users as sender', 'messages.sender_id', 'sender.id')
+      .where('messages.trade_id', tradeId);
+    
+    const totalCount = await countQuery.count('messages.id as total').first();
 
     // Apply pagination
     const offset = (page - 1) * limit;

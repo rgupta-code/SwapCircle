@@ -142,8 +142,66 @@ router.get('/items', optionalAuth, async (req, res) => {
     }
 
     // Get total count for pagination
-    const countQuery = query.clone();
-    const totalCount = await countQuery.count('* as total').first();
+    const countQuery = db('items')
+      .join('users', 'items.user_id', 'users.id')
+      .leftJoin('categories', 'items.category_id', 'categories.id')
+      .where('items.is_available', true)
+      .where('users.is_banned', false);
+    
+    // Apply the same filters to count query
+    if (q) {
+      countQuery.where(function() {
+        this.where('items.title', 'ilike', `%${q}%`)
+          .orWhere('items.description', 'ilike', `%${q}%`)
+          .orWhere('items.tags', 'ilike', `%${q}%`)
+          .orWhere('categories.name', 'ilike', `%${q}%`);
+      });
+    }
+    
+    if (category) {
+      countQuery.where('items.category_id', category);
+    }
+    
+    if (itemType) {
+      countQuery.where('items.item_type', itemType);
+    }
+    
+    if (condition) {
+      countQuery.where('items.condition', condition);
+    }
+    
+    if (minValue !== undefined) {
+      countQuery.where('items.estimated_value', '>=', parseFloat(minValue));
+    }
+    
+    if (maxValue !== undefined) {
+      countQuery.where('items.estimated_value', '<=', parseFloat(maxValue));
+    }
+    
+    if (location) {
+      countQuery.where(function() {
+        this.where('users.location_city', 'ilike', `%${location}%`)
+          .orWhere('users.location_state', 'ilike', `%${location}%`)
+          .orWhere('users.location_country', 'ilike', `%${location}%`);
+      });
+    }
+    
+    if (tags) {
+      const tagsArray = tags.split(',').map(t => t.trim());
+      countQuery.whereRaw('items.tags && ?', [JSON.stringify(tagsArray)]);
+    }
+    
+    if (allowsShipping !== undefined) {
+      countQuery.where('items.allows_shipping', allowsShipping === 'true');
+    }
+    if (allowsPickup !== undefined) {
+      countQuery.where('items.allows_pickup', allowsPickup === 'true');
+    }
+    if (allowsMeetup !== undefined) {
+      countQuery.where('items.allows_meetup', allowsMeetup === 'true');
+    }
+    
+    const totalCount = await countQuery.count('items.id as total').first();
 
     // Apply pagination
     const offset = (page - 1) * limit;
@@ -301,8 +359,51 @@ router.get('/users', optionalAuth, async (req, res) => {
     }
 
     // Get total count for pagination
-    const countQuery = query.clone();
-    const totalCount = await countQuery.count('* as total').first();
+    const countQuery = db('users')
+      .where('users.is_banned', false);
+    
+    // Apply the same filters to count query
+    if (q) {
+      countQuery.where(function() {
+        this.where('users.username', 'ilike', `%${q}%`)
+          .orWhere('users.first_name', 'ilike', `%${q}%`)
+          .orWhere('users.last_name', 'ilike', `%${q}%`)
+          .orWhere('users.bio', 'ilike', `%${q}%`);
+      });
+    }
+    
+    if (location) {
+      countQuery.where(function() {
+        this.where('users.location_city', 'ilike', `%${location}%`)
+          .orWhere('users.location_state', 'ilike', `%${location}%`)
+          .orWhere('users.location_country', 'ilike', `%${location}%`);
+      });
+    }
+    
+    if (skills) {
+      const skillsArray = skills.split(',').map(s => s.trim());
+      countQuery.whereRaw('users.skills_offered && ?', [JSON.stringify(skillsArray)]);
+    }
+    
+    if (interests) {
+      const interestsArray = interests.split(',').map(i => i.trim());
+      countQuery.whereRaw('users.interests && ?', [JSON.stringify(interestsArray)]);
+    }
+    
+    if (minTrustScore) {
+      countQuery.where('users.trust_score', '>=', parseInt(minTrustScore));
+    }
+    
+    if (hasItems === 'true') {
+      countQuery.whereExists(function() {
+        this.select('*')
+          .from('items')
+          .whereRaw('items.user_id = users.id')
+          .where('items.is_available', true);
+      });
+    }
+    
+    const totalCount = await countQuery.count('users.id as total').first();
 
     // Apply pagination
     const offset = (page - 1) * limit;

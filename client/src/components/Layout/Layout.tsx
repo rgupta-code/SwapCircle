@@ -30,6 +30,7 @@ import {
   Message as MessageIcon,
   Person as PersonIcon,
   ExitToApp as LogoutIcon,
+  AppShortcut as AppShortcutIcon,
   Notifications as NotificationsIcon,
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -96,7 +97,7 @@ const Layout: React.FC = () => {
   const navigationItems = [
     { text: 'Home', icon: <HomeIcon />, path: '/' },
     { text: 'Browse Items', icon: <SearchIcon />, path: '/items' },
-    { text: 'AI Matching', icon: <SwapIcon />, path: '/matching' },
+    { text: 'AI Matching', icon: <AppShortcutIcon />, path: '/matching' },
     { text: 'My Trades', icon: <SwapIcon />, path: '/trades' },
     { text: 'Messages', icon: <MessageIcon />, path: '/messages' },
     { text: 'Profile', icon: <PersonIcon />, path: '/profile' },
@@ -127,6 +128,10 @@ const Layout: React.FC = () => {
                 '&:hover': {
                   backgroundColor: 'primary.light',
                 },
+              },
+              '&:hover': {
+                backgroundColor: 'primary.light',
+                opacity: 0.7,
               },
             }}
           >

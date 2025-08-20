@@ -21,6 +21,10 @@ import {
   Recycling as EcoIcon,
   TrendingUp as TrendingIcon,
   Star as StarIcon,
+  People as PeopleIcon,
+  Inventory as InventoryIcon,
+  Handshake as HandshakeIcon,
+  Category as CategoryIcon,
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -95,10 +99,10 @@ const HomePage: React.FC = () => {
   ]
 
   const stats = [
-    { label: 'Active Users', value: '10K+', icon: <TrendingIcon /> },
-    { label: 'Items Listed', value: '50K+', icon: <SwapIcon /> },
-    { label: 'Successful Trades', value: '25K+', icon: <StarIcon /> },
-    { label: 'Categories', value: '12+', icon: <SearchIcon /> },
+    { label: 'Active Users', value: '10K+', icon: <PeopleIcon /> },
+    { label: 'Items Listed', value: '50K+', icon: <InventoryIcon /> },
+    { label: 'Successful Trades', value: '25K+', icon: <HandshakeIcon /> },
+    { label: 'Categories', value: '12+', icon: <CategoryIcon /> },
   ]
 
   return (
@@ -208,13 +212,18 @@ const HomePage: React.FC = () => {
               >
                 <Box
                   component="img"
-                  src="/hero-illustration.svg"
+                  src="/src/Images/BarterHome.jpeg"
                   alt="Barter Trading"
                   sx={{
                     width: '100%',
                     maxWidth: 500,
                     height: 'auto',
+                    borderRadius: '20px',
                     filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.3))',
+                    borderImage: 'linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 50%, transparent 100%) 1',
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%)',
+                    padding: '3px',
+                    boxShadow: 'inset 0 0 20px rgba(255,255,255,0.1)',
                   }}
                 />
               </Box>

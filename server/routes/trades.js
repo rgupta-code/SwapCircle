@@ -58,8 +58,22 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     // Get total count for pagination
-    const countQuery = query.clone();
-    const totalCount = await countQuery.count('* as total').first();
+    const countQuery = db('trades')
+      .join('users as initiator', 'trades.initiator_id', 'initiator.id')
+      .join('users as responder', 'trades.responder_id', 'responder.id')
+      .leftJoin('items as initiator_item', 'trades.initiator_item_id', 'initiator_item.id')
+      .leftJoin('items as responder_item', 'trades.responder_item_id', 'responder_item.id')
+      .where(function() {
+        this.where('trades.initiator_id', req.user.id)
+          .orWhere('trades.responder_id', req.user.id);
+      });
+    
+    // Apply status filter to count query
+    if (status) {
+      countQuery.where('trades.status', status);
+    }
+    
+    const totalCount = await countQuery.count('trades.id as total').first();
 
     // Apply pagination
     const offset = (page - 1) * limit;

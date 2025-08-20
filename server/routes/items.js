@@ -30,7 +30,7 @@ const validateItem = [
   body('itemType').isIn(['good', 'service']),
   body('condition').isIn(['new', 'like_new', 'good', 'fair', 'poor']),
   body('estimatedValue').optional().isFloat({ min: 0 }),
-  body('tags').optional().isArray(),
+
   body('allowsShipping').optional().isBoolean(),
   body('allowsPickup').optional().isBoolean(),
   body('allowsMeetup').optional().isBoolean(),
@@ -83,8 +83,7 @@ router.get('/', optionalAuth, async (req, res) => {
     if (search) {
       query = query.where(function() {
         this.where('title', 'ilike', `%${search}%`)
-          .orWhere('description', 'ilike', `%${search}%`)
-          .orWhere('tags', 'ilike', `%${search}%`);
+          .orWhere('description', 'ilike', `%${search}%`);
       });
     }
 
@@ -97,8 +96,38 @@ router.get('/', optionalAuth, async (req, res) => {
     }
 
     // Get total count for pagination
-    const countQuery = query.clone();
-    const totalCount = await countQuery.count('* as total').first();
+    const countQuery = db('items')
+      .where('is_available', true);
+    
+    // Apply featured filter to count query
+    if (featured === 'true') {
+      countQuery.where('is_featured', true);
+    }
+    
+    // Apply filters to count query
+    if (category) {
+      countQuery.where('category_id', category);
+    }
+    if (itemType) {
+      countQuery.where('item_type', itemType);
+    }
+    if (condition) {
+      countQuery.where('condition', condition);
+    }
+    if (minValue) {
+      countQuery.where('estimated_value', '>=', minValue);
+    }
+    if (maxValue) {
+      countQuery.where('estimated_value', '<=', maxValue);
+    }
+    if (search) {
+      countQuery.where(function() {
+        this.where('title', 'ilike', `%${search}%`)
+          .orWhere('description', 'ilike', `%${search}%`);
+      });
+    }
+    
+    const totalCount = await countQuery.count('items.id as total').first();
 
     // Apply pagination
     const offset = (page - 1) * limit;
@@ -189,6 +218,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 // Create new item
 router.post('/', authenticateToken, upload.array('images', 5), validateItem, async (req, res) => {
   try {
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -201,7 +231,6 @@ router.post('/', authenticateToken, upload.array('images', 5), validateItem, asy
       itemType,
       condition,
       estimatedValue,
-      tags,
       allowsShipping,
       allowsPickup,
       allowsMeetup,
@@ -209,24 +238,35 @@ router.post('/', authenticateToken, upload.array('images', 5), validateItem, asy
       tradePreferences
     } = req.body;
 
+    console.log('req.body:', req.body);
+
     // Handle image uploads
     let imageUrls = [];
     if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        try {
-          const result = await cloudinary.uploader.upload(
-            `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
-            {
-              folder: 'swapcircle/items',
-              transformation: [
-                { width: 800, height: 600, crop: 'limit' },
-                { quality: 'auto' }
-              ]
-            }
-          );
-          imageUrls.push(result.secure_url);
-        } catch (uploadError) {
-          console.error('Image upload error:', uploadError);
+      // Check if Cloudinary is configured
+      if (!process.env.CLOUDINARY_CLOUD_NAME || 
+          !process.env.CLOUDINARY_API_KEY || 
+          !process.env.CLOUDINARY_API_SECRET) {
+        console.warn('Cloudinary not configured - skipping image uploads');
+        // For now, just store a placeholder or skip images
+        // imageUrls = ['placeholder-image-url'];
+      } else {
+        for (const file of req.files) {
+          try {
+            const result = await cloudinary.uploader.upload(
+              `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+              {
+                folder: 'swapcircle/items',
+                transformation: [
+                  { width: 800, height: 600, crop: 'limit' },
+                  { quality: 'auto' }
+                ]
+              }
+            );
+            imageUrls.push(result.secure_url);
+          } catch (uploadError) {
+            console.error('Image upload error:', uploadError);
+          }
         }
       }
     }
@@ -245,7 +285,7 @@ router.post('/', authenticateToken, upload.array('images', 5), validateItem, asy
     };
 
     // Create item
-    const [itemId] = await db('items').insert({
+    const [itemResult] = await db('items').insert({
       user_id: req.user.id,
       category_id: categoryId,
       title,
@@ -253,7 +293,7 @@ router.post('/', authenticateToken, upload.array('images', 5), validateItem, asy
       item_type: itemType,
       condition,
       images: imageUrls,
-      tags: tags || [],
+
       estimated_value: estimatedValue,
       allows_shipping: allowsShipping || false,
       allows_pickup: allowsPickup !== false,
@@ -261,10 +301,27 @@ router.post('/', authenticateToken, upload.array('images', 5), validateItem, asy
       meetup_radius: meetupRadius || 25,
       trade_preferences: tradePreferences || {},
       location
-    }).returning('id');
+    }).returning('*');
+
+    // Debug: Log the returned result
+    console.log('Insert result:', itemResult);
+    console.log('Type of itemResult:', typeof itemResult);
+
+    // Extract the actual ID value
+    const itemId = itemResult.id;
+    console.log('Extracted itemId:', itemId);
+
+    // Validate that we have a valid UUID
+    if (!itemId || typeof itemId !== 'string') {
+      throw new Error(`Invalid item ID returned: ${JSON.stringify(itemResult)}`);
+    }
 
     // Get created item
-    const item = await db('items')
+    console.log('Querying for created item with ID:', itemId);
+    console.log('ID type:', typeof itemId);
+    
+    // Build the query first to debug
+    const query = db('items')
       .select(
         'items.*',
         'users.username',
@@ -276,8 +333,11 @@ router.post('/', authenticateToken, upload.array('images', 5), validateItem, asy
       )
       .join('users', 'items.user_id', 'users.id')
       .leftJoin('categories', 'items.category_id', 'categories.id')
-      .where('items.id', itemId)
-      .first();
+      .where('items.id', itemId);
+    
+    console.log('Generated SQL:', query.toString());
+    
+    const item = await query.first();
 
     res.status(201).json({
       message: 'Item created successfully',
@@ -285,7 +345,25 @@ router.post('/', authenticateToken, upload.array('images', 5), validateItem, asy
     });
   } catch (error) {
     console.error('Create item error:', error);
-    res.status(500).json({ error: 'Failed to create item' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      constraint: error.constraint,
+      detail: error.detail,
+      hint: error.hint,
+      stack: error.stack
+    });
+    
+    // Send more specific error messages
+    if (error.code === '23505') { // Unique constraint violation
+      res.status(400).json({ error: 'Item with this title already exists' });
+    } else if (error.code === '23503') { // Foreign key constraint violation
+      res.status(400).json({ error: 'Invalid category ID or user ID' });
+    } else if (error.code === '23514') { // Check constraint violation
+      res.status(400).json({ error: 'Invalid data provided' });
+    } else {
+      res.status(500).json({ error: 'Failed to create item', details: error.message });
+    }
   }
 });
 
@@ -429,6 +507,79 @@ router.patch('/:id/toggle', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Toggle item error:', error);
     res.status(500).json({ error: 'Failed to toggle item status' });
+  }
+});
+
+// Upload images for item
+router.patch('/:id/images', authenticateToken, upload.array('images', 5), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check ownership
+    const existingItem = await db('items')
+      .where('id', id)
+      .where('user_id', req.user.id)
+      .first();
+
+    if (!existingItem) {
+      return res.status(404).json({ error: 'Item not found or access denied' });
+    }
+
+    // Handle image uploads
+    if (req.files && req.files.length > 0) {
+      let imageUrls = [];
+      for (const file of req.files) {
+        try {
+          const result = await cloudinary.uploader.upload(
+            `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+            {
+              folder: 'swapcircle/items',
+              transformation: [
+                { width: 800, height: 600, crop: 'limit' },
+                { quality: 'auto' }
+              ]
+            }
+          );
+          imageUrls.push(result.secure_url);
+        } catch (uploadError) {
+          console.error('Image upload error:', uploadError);
+        }
+      }
+
+      // Update item with new images
+      await db('items')
+        .where('id', id)
+        .update({ 
+          images: imageUrls,
+          updated_at: db.fn.now()
+        });
+
+      // Get updated item
+      const item = await db('items')
+        .select(
+          'items.*',
+          'users.username',
+          'users.first_name',
+          'users.last_name',
+          'users.avatar_url',
+          'users.trust_score',
+          'categories.name as category_name'
+        )
+        .join('users', 'items.user_id', 'users.id')
+        .leftJoin('categories', 'items.category_id', 'categories.id')
+        .where('items.id', id)
+        .first();
+
+      res.json({
+        message: 'Images uploaded successfully',
+        item
+      });
+    } else {
+      res.status(400).json({ error: 'No images provided' });
+    }
+  } catch (error) {
+    console.error('Image upload error:', error);
+    res.status(500).json({ error: 'Failed to upload images' });
   }
 });
 

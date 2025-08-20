@@ -308,8 +308,18 @@ router.get('/:username/items', optionalAuth, async (req, res) => {
     }
 
     // Get total count for pagination
-    const countQuery = query.clone();
-    const totalCount = await countQuery.count('* as total').first();
+    const countQuery = db('items')
+      .leftJoin('categories', 'items.category_id', 'categories.id')
+      .where('items.user_id', user.id);
+    
+    // Apply status filter to count query
+    if (status === 'available') {
+      countQuery.where('items.is_available', true);
+    } else if (status === 'traded') {
+      countQuery.where('items.is_available', false);
+    }
+    
+    const totalCount = await countQuery.count('items.id as total').first();
 
     // Apply pagination
     const offset = (page - 1) * limit;
@@ -367,8 +377,13 @@ router.get('/:username/reviews', optionalAuth, async (req, res) => {
       .where('reviews.is_public', true);
 
     // Get total count for pagination
-    const countQuery = query.clone();
-    const totalCount = await countQuery.count('* as total').first();
+    const countQuery = db('reviews')
+      .join('users as reviewer', 'reviews.reviewer_id', 'reviewer.id')
+      .join('trades', 'reviews.trade_id', 'trades.id')
+      .where('reviews.reviewed_user_id', user.id)
+      .where('reviews.is_public', true);
+    
+    const totalCount = await countQuery.count('reviews.id as total').first();
 
     // Apply pagination
     const offset = (page - 1) * limit;
@@ -442,8 +457,33 @@ router.get('/search', optionalAuth, async (req, res) => {
     }
 
     // Get total count for pagination
-    const countQuery = query.clone();
-    const totalCount = await countQuery.count('* as total').first();
+    const countQuery = db('users')
+      .where('is_banned', false);
+    
+    // Apply search filters to count query
+    if (q) {
+      countQuery.where(function() {
+        this.where('username', 'ilike', `%${q}%`)
+          .orWhere('first_name', 'ilike', `%${q}%`)
+          .orWhere('last_name', 'ilike', `%${q}%`)
+          .orWhere('bio', 'ilike', `%${q}%`);
+      });
+    }
+    
+    if (location) {
+      countQuery.where(function() {
+        this.where('location_city', 'ilike', `%${location}%`)
+          .orWhere('location_state', 'ilike', `%${location}%`)
+          .orWhere('location_country', 'ilike', `%${location}%`);
+      });
+    }
+    
+    if (skills) {
+      const skillsArray = skills.split(',').map(s => s.trim());
+      countQuery.whereRaw('skills_offered && ?', [JSON.stringify(skillsArray)]);
+    }
+    
+    const totalCount = await countQuery.count('users.id as total').first();
 
     // Apply pagination and sorting
     const offset = (page - 1) * limit;

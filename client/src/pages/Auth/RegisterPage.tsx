@@ -13,6 +13,7 @@ import {
   Grid,
 } from '@mui/material';
 import { PersonAddOutlined } from '@mui/icons-material';
+import { useAuth } from '../../contexts/AuthContext';
 
 const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -26,6 +27,7 @@ const RegisterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { register } = useAuth();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -46,16 +48,26 @@ const RegisterPage: React.FC = () => {
     }
 
     try {
-      // TODO: Implement actual registration logic
-      console.log('Registration attempt:', formData);
+      // Call the register function from AuthContext
+      await register({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        username: formData.username,
+        password: formData.password,
+      });
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For now, just redirect to login
-      navigate('/login');
-    } catch (err) {
-      setError('Registration failed. Please try again.');
+      // If registration is successful, user will be redirected to home by AuthContext
+      // No need to manually navigate here
+    } catch (err: any) {
+      // Handle registration errors
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError('Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
