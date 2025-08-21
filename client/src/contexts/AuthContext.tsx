@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         trustScore: userData.trust_score,
         isVerified: userData.is_verified,
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Auth check failed:', error)
       // Only remove token if it's an authentication error (401, 403)
       if (error.response?.status === 401 || error.response?.status === 403) {

@@ -97,6 +97,78 @@ router.post('/', authenticateToken, validateMessage, async (req, res) => {
 
     const { tradeId, recipientId, content, attachments } = req.body;
 
+    // Handle new direct messages (without existing trade)
+    if (tradeId === 'new' && recipientId) {
+      // Check if a trade already exists between these users
+      let existingTrade = await db('trades')
+        .select('id', 'status')
+        .where(function() {
+          this.where('initiator_id', req.user.id)
+            .andWhere('responder_id', recipientId);
+        })
+        .orWhere(function() {
+          this.where('initiator_id', recipientId)
+            .andWhere('responder_id', req.user.id);
+        })
+        .first();
+
+      // If no trade exists, create a new one
+      if (!existingTrade) {
+        const tradeData = {
+          initiator_id: req.user.id,
+          responder_id: recipientId,
+          status: 'pending'
+        };
+        
+        // Add trade_type if the column exists
+        try {
+          const [tradeId] = await db('trades').insert({
+            ...tradeData,
+            trade_type: 'direct_message'
+          }).returning('id');
+          
+          existingTrade = { id: tradeId, status: 'pending' };
+        } catch (error) {
+          // If trade_type column doesn't exist, try without it
+          if (error.message.includes('trade_type')) {
+            const [tradeId] = await db('trades').insert(tradeData).returning('id');
+            existingTrade = { id: tradeId, status: 'pending' };
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      // Create message
+      const [messageId] = await db('messages').insert({
+        trade_id: existingTrade.id,
+        sender_id: req.user.id,
+        recipient_id: recipientId,
+        content,
+        attachments: attachments || [],
+        message_type: 'text'
+      }).returning('id');
+
+      // Get created message with sender info
+      const message = await db('messages')
+        .select(
+          'messages.*',
+          'sender.username as sender_username',
+          'sender.first_name as sender_first_name',
+          'sender.last_name as sender_last_name',
+          'sender.avatar_url as sender_avatar'
+        )
+        .join('users as sender', 'messages.sender_id', 'sender.id')
+        .where('messages.id', messageId)
+        .first();
+
+      res.status(201).json({
+        message: 'Message sent successfully',
+        data: message
+      });
+      return;
+    }
+
     // Check if trade exists and user is part of it
     const trade = await db('trades')
       .select('initiator_id', 'responder_id', 'status')
@@ -225,12 +297,13 @@ router.get('/conversations', authenticateToken, async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
-    // Get trades where user is involved
+    // Get trades where user is involved (including direct messages)
     const trades = await db('trades')
       .select(
         'trades.id',
         'trades.status',
         'trades.created_at',
+        db.raw('COALESCE(trades.trade_type, \'item_trade\') as trade_type'),
         'initiator.username as initiator_username',
         'initiator.first_name as initiator_first_name',
         'initiator.last_name as initiator_last_name',
@@ -285,6 +358,7 @@ router.get('/conversations', authenticateToken, async (req, res) => {
       conversations.push({
         tradeId: trade.id,
         status: trade.status,
+        tradeType: trade.trade_type || 'item_trade',
         otherUser,
         lastMessage: lastMessage ? {
           content: lastMessage.content,

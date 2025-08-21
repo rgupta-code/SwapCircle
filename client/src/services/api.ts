@@ -211,4 +211,89 @@ export const tradesAPI = {
   }
 };
 
+export const userAPI = {
+  // Get current user's profile
+  getCurrentUser: async () => {
+    const response = await api.get('/users/me');
+    return response.data;
+  },
+
+  // Get user profile by username
+  getUserProfile: async (username: string) => {
+    const response = await api.get(`/users/profile/${username}`);
+    return response.data;
+  },
+
+  // Update user profile
+  updateProfile: async (profileData: FormData) => {
+    const response = await api.put('/users/me', profileData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Get user's items
+  getUserItems: async (username: string, params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+  }) => {
+    const response = await api.get(`/users/${username}/items`, { params });
+    return response.data;
+  },
+
+  // Get user's reviews
+  getUserReviews: async (username: string, params?: {
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get(`/users/${username}/reviews`, { params });
+    return response.data;
+  }
+};
+
+export const messagesAPI = {
+  // Get conversations list
+  getConversations: async (params?: {
+    limit?: number;
+  }) => {
+    const response = await api.get('/messages/conversations', { params });
+    return response.data;
+  },
+
+  // Get messages for a specific trade/conversation
+  getMessages: async (tradeId: string, params?: {
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get(`/messages/trade/${tradeId}`, { params });
+    return response.data;
+  },
+
+  // Send a message
+  sendMessage: async (data: {
+    tradeId: string;
+    recipientId?: string;
+    content: string;
+    attachments?: any[];
+  }) => {
+    const response = await api.post('/messages', data);
+    return response.data;
+  },
+
+  // Mark messages as read
+  markMessagesAsRead: async (messageIds: string[]) => {
+    const response = await api.patch('/messages/read', { messageIds });
+    return response.data;
+  },
+
+  // Get unread message count
+  getUnreadCount: async () => {
+    const response = await api.get('/messages/unread/count');
+    return response.data;
+  }
+};
+
 export default api

@@ -31,8 +31,24 @@ const validateProfileUpdate = [
   body('locationCity').optional().trim().isLength({ max: 100 }),
   body('locationState').optional().trim().isLength({ max: 100 }),
   body('locationCountry').optional().trim().isLength({ max: 100 }),
-  body('interests').optional().isArray(),
-  body('skillsOffered').optional().isArray(),
+  body('interests').optional().custom((value) => {
+    if (value === undefined || value === null) return true;
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed);
+    } catch {
+      return false;
+    }
+  }).withMessage('Interests must be a valid JSON array'),
+  body('skillsOffered').optional().custom((value) => {
+    if (value === undefined || value === null) return true;
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed);
+    } catch {
+      return false;
+    }
+  }).withMessage('Skills offered must be a valid JSON array'),
 ];
 
 // Get user profile by username
@@ -228,8 +244,24 @@ router.put('/me', authenticateToken, upload.single('avatar'), validateProfileUpd
     if (locationCountry !== undefined) updateData.location_country = locationCountry;
     if (latitude !== undefined) updateData.latitude = latitude;
     if (longitude !== undefined) updateData.longitude = longitude;
-    if (interests !== undefined) updateData.interests = interests;
-    if (skillsOffered !== undefined) updateData.skills_offered = skillsOffered;
+    
+    // Parse JSON strings for arrays
+    if (interests !== undefined) {
+      try {
+        updateData.interests = JSON.parse(interests);
+      } catch (e) {
+        console.error('Failed to parse interests:', e);
+        updateData.interests = [];
+      }
+    }
+    if (skillsOffered !== undefined) {
+      try {
+        updateData.skills_offered = JSON.parse(skillsOffered);
+      } catch (e) {
+        console.error('Failed to parse skillsOffered:', e);
+        updateData.skills_offered = [];
+      }
+    }
 
     // Update user
     await db('users')
